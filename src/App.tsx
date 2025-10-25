@@ -88,6 +88,9 @@ const components: TLComponents = {
 
   // Disable context menu
   useEffect(() => {
+    if (window.location.pathname === '/') {
+      window.location.replace('/com.rishah.app');
+    }
     const disableContextMenu = (e: MouseEvent) => {
       e.preventDefault();
     };
@@ -481,6 +484,7 @@ const components: TLComponents = {
 				    overrides={uiOverrides}
 				    components={{...components,...shapeButtons,StylePanel:CustomStylePanel}}
 				    assetUrls={customAssetUrls}
+          licenseKey={import.meta.env.VITE_TLDRAW_LICENSE}
          />
          
     </div>

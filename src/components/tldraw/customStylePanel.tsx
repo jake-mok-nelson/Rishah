@@ -1,8 +1,8 @@
 import { ColorPicker } from 'antd'
 import React, { useEffect } from 'react'
 import { useRef } from 'react'
-import { Editor, useEditor, useRelevantStyles, DefaultStylePanelContent, DefaultStylePanel, TldrawUiSlider, DefaultColorStyle, TldrawUiToolbar,
-    TldrawUiButtonPicker, getDefaultColorTheme,
+import { Editor, useEditor, DefaultStylePanelContent, DefaultStylePanel, TldrawUiSlider, DefaultColorStyle, TldrawUiToolbar,
+    StylePanelButtonPicker, getDefaultColorTheme,
     TLShape
 } from 'tldraw'
 
@@ -51,9 +51,6 @@ export const CustomStylePanel = () => {
     }, [editor, selectedShapeId]);
 
 
-    const styles = useRelevantStyles()
-    
-    if (!styles) return null
 
     let isIconSelected = selectedShape?.meta?.type === 'icon';
 
@@ -123,7 +120,7 @@ export const CustomStylePanel = () => {
         return(
             <div>
                 <TldrawUiToolbar label={''}>
-                    <TldrawUiButtonPicker
+                    <StylePanelButtonPicker
                         title={'Color'}
                         uiType="color"
                         style={DefaultColorStyle}
@@ -131,8 +128,9 @@ export const CustomStylePanel = () => {
                         
                         // @ts-ignore
                         value={shapeColorName ? shapeColorName :  'black'} 
-                        theme={theme} 
-                        onValueChange= {(_e,color:string)=>{
+                        theme={theme}
+                        // @ts-ignore
+                        onValueChange= {(e:any,color:string)=>{
                             const theme = getDefaultColorTheme({ isDarkMode: false });
                             // @ts-ignore
                             const b =  theme[color]?.solid || null;
@@ -169,7 +167,7 @@ export const CustomStylePanel = () => {
     return (
         <DefaultStylePanel>
       
-            <DefaultStylePanelContent styles={styles} />
+            <DefaultStylePanelContent />
             {isIconSelected && 
                 <div>
                     <div className="tlui-style-panel__section__common">
