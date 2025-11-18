@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Editor, Tldraw, hardReset,parseTldrawJsonFile,createTLSchema, TLUiOverrides, TLComponents, useTools, useIsToolSelected,
-   DefaultToolbar, TldrawUiMenuItem, DefaultToolbarContent, TLUiAssetUrlOverrides, 
-   defaultHandleExternalTldrawContent,TLTldrawExternalContent,AssetRecordType
+   DefaultToolbar, TldrawUiMenuItem, DefaultToolbarContent, TLUiAssetUrlOverrides,
+   defaultHandleExternalTldrawContent,TLTldrawExternalContent,AssetRecordType,useReactor
   } from 'tldraw'
 import 'tldraw/tldraw.css'
 import { save,open,ask,message as dialogMessage } from '@tauri-apps/plugin-dialog';
@@ -14,6 +14,7 @@ import { shapeButtons } from "./components/tldraw/shapeButtons";
 import { IconsTool } from './components/tldraw/IconButton'
 import iconS from './assets/pen-tool.png'
 import { CustomStylePanel } from "./components/tldraw/customStylePanel";
+import { initializeUserPreferences, saveUserPreferences, saveInstanceState, loadInstanceState } from "./utils/settingsManager";
 
 getCurrentWindow().listen("my-window-event", ({ event, payload }) => {
   console.log(event)
@@ -85,6 +86,30 @@ const components: TLComponents = {
      }
     fetchData()
   }, [editor]);
+
+
+useReactor(
+  'save-grid-mode',
+  () => {
+    if (!editor) return;
+
+    const isGridMode = editor.getInstanceState().isGridMode;
+   // console.log('Grid mode changed:', isGridMode);
+    saveInstanceState({ isGridMode });
+  },
+  [editor]
+);
+
+useReactor(
+  'save-user-preferences',
+  () => {
+    if (!editor) return;
+    const userPrefs = editor.user.getUserPreferences();
+   // console.log('User preferences changed:', userPrefs);
+    saveUserPreferences(userPrefs);
+  },
+  [editor]
+);
 
   // Disable context menu
   useEffect(() => {
@@ -423,7 +448,7 @@ const components: TLComponents = {
 
   const handleAbout = async () => {
     try {
-      await dialogMessage('Rishah v0.5.2\n\nA modern drawing and diagramming application built with Tauri and TLDraw.\n\n© 2025 Rishah Team', {
+      await dialogMessage('Rishah v0.6.0\n\nA modern drawing and diagramming application built with Tauri and TLDraw.\n\n© 2025 Rishah Team', {
         title: 'About Rishah',
         kind: 'info',
       });
@@ -464,7 +489,7 @@ const components: TLComponents = {
     
 }
 
-  
+
 
   return (
     <main className="container">
@@ -472,18 +497,31 @@ const components: TLComponents = {
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
 
 
-        <Tldraw onMount={(editor) => {
-          if(editor){
+        <Tldraw
+          onMount={(editor) => {
+            if(!editor) return;
             setEditor(editor)
-          }
-          editor.user.updateUserPreferences({ isSnapMode: true })
-          editor.registerExternalContentHandler('tldraw', (content) =>{
-             handleCustomTldrawPaste(editor,content);
-          })
-          }} tools={customTools}
-				    overrides={uiOverrides}
-				    components={{...components,...shapeButtons,StylePanel:CustomStylePanel}}
-				    assetUrls={customAssetUrls}
+
+            // Load and apply saved preferences
+            initializeUserPreferences().then(savedPrefs => {
+              editor.user.updateUserPreferences(savedPrefs);
+            });
+
+            // Load and apply saved instance state (grid mode)
+            loadInstanceState().then(savedInstanceState => {
+              if (savedInstanceState) {
+                editor.updateInstanceState({ isGridMode: savedInstanceState.isGridMode });
+              }
+            });
+
+            editor.registerExternalContentHandler('tldraw', (content) =>{
+              handleCustomTldrawPaste(editor,content);
+            })
+          }}
+          tools={customTools}
+          overrides={uiOverrides}
+          components={{...components,...shapeButtons,StylePanel:CustomStylePanel}}
+          assetUrls={customAssetUrls}
           licenseKey={import.meta.env.VITE_TLDRAW_LICENSE}
          />
          
