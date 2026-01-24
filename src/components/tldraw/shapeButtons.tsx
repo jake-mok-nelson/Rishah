@@ -1,5 +1,5 @@
 import { createShapeId, Editor, intersectLineSegmentPolygon, stopEventPropagation, TLArrowBinding, TLArrowShape, 
-  TLComponents, TLShapeId, useEditor, useValue, Vec
+  TLComponents, TLShape, TLShapeId, useEditor, useValue, Vec
 } from 'tldraw'
 import 'tldraw/tldraw.css'
 import { Button, Popover } from 'antd';
@@ -165,7 +165,12 @@ const DuplicateShape = (rotation: number,editor : Editor) => {
 
 
     const newlySelectedShapes = editor.getSelectedShapeIds();
-    editor.updateShape({ id: newlySelectedShapes[0], type: newShape[0].type, props: { richText : {
+    type MyShapeWithMeta = TLShape & {
+      props: {
+        richText: { type: string, content: { type: string }[]; };
+      };
+    };
+    editor.updateShape<MyShapeWithMeta>({ id: newlySelectedShapes[0], type: newShape[0].type, props: { richText : {
       type: "doc",
       content: [{ type: "paragraph" }]
     }}})
