@@ -1,7 +1,6 @@
-import { Store } from '@tauri-apps/plugin-store';
+import { LoadSettings, SaveSettings } from '../../wailsjs/go/main/App';
 import { TLUserPreferences, defaultUserPreferences } from 'tldraw';
 
-const SETTINGS_FILE = 'rishah-settings.json';
 const USER_PREFS_KEY = 'userPreferences';
 const INSTANCE_STATE_KEY = 'instanceState';
 const DEFAULT_USER_ID = 'rishah-user';
@@ -18,9 +17,19 @@ const getDiff = <T extends Record<string, any>>(obj: T, defaults: Partial<T>): P
     )
   ) as Partial<T>;
 
-// Get store instance
-async function getStore(): Promise<Store> {
-  return Store.load(SETTINGS_FILE);
+// Get all settings as an object
+async function getAllSettings(): Promise<Record<string, any>> {
+  try {
+    const raw = await LoadSettings();
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+// Save all settings
+async function setAllSettings(settings: Record<string, any>): Promise<void> {
+  await SaveSettings(JSON.stringify(settings));
 }
 
 // Create default user preferences with custom settings
@@ -35,8 +44,8 @@ function createDefaultPreferences(): TLUserPreferences {
 // Initialize user preferences (load or create)
 export async function initializeUserPreferences(): Promise<TLUserPreferences> {
   try {
-    const store = await getStore();
-    const savedPrefs = await store.get<Partial<TLUserPreferences>>(USER_PREFS_KEY);
+    const settings = await getAllSettings();
+    const savedPrefs = settings[USER_PREFS_KEY] as Partial<TLUserPreferences> | undefined;
 
     if (savedPrefs) {
       // Merge saved changes with defaults
@@ -47,8 +56,8 @@ export async function initializeUserPreferences(): Promise<TLUserPreferences> {
     }
 
     // First time - save only the ID
-    await store.set(USER_PREFS_KEY, { id: DEFAULT_USER_ID });
-    await store.save();
+    settings[USER_PREFS_KEY] = { id: DEFAULT_USER_ID };
+    await setAllSettings(settings);
 
     return createDefaultPreferences();
   } catch (error) {
@@ -60,11 +69,11 @@ export async function initializeUserPreferences(): Promise<TLUserPreferences> {
 // Save user preferences (only what changed from defaults)
 export async function saveUserPreferences(prefs: TLUserPreferences): Promise<void> {
   try {
-    const store = await getStore();
+    const settings = await getAllSettings();
     const changedPrefs = getDiff(prefs, defaultUserPreferences);
 
-    await store.set(USER_PREFS_KEY, changedPrefs);
-    await store.save();
+    settings[USER_PREFS_KEY] = changedPrefs;
+    await setAllSettings(settings);
   } catch (error) {
     console.error('Failed to save user preferences:', error);
   }
@@ -73,8 +82,8 @@ export async function saveUserPreferences(prefs: TLUserPreferences): Promise<voi
 // Load instance state
 export async function loadInstanceState(): Promise<InstanceState | null> {
   try {
-    const store = await getStore();
-    return await store.get<InstanceState>(INSTANCE_STATE_KEY) ?? null;
+    const settings = await getAllSettings();
+    return (settings[INSTANCE_STATE_KEY] as InstanceState) ?? null;
   } catch (error) {
     console.error('Failed to load instance state:', error);
     return null;
@@ -84,9 +93,9 @@ export async function loadInstanceState(): Promise<InstanceState | null> {
 // Save instance state
 export async function saveInstanceState(state: InstanceState): Promise<void> {
   try {
-    const store = await getStore();
-    await store.set(INSTANCE_STATE_KEY, state);
-    await store.save();
+    const settings = await getAllSettings();
+    settings[INSTANCE_STATE_KEY] = state;
+    await setAllSettings(settings);
   } catch (error) {
     console.error('Failed to save instance state:', error);
   }
