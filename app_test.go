@@ -146,14 +146,3 @@ func TestWriteFileBase64(t *testing.T) {
 		t.Error("expected error for invalid base64 data")
 	}
 }
-
-func TestSaveFileDialogForExport_NoContext(t *testing.T) {
-	// This test verifies the method exists and handles format switching correctly.
-	// We can't fully test the dialog without a Wails context, but we can verify
-	// the method signature and that it doesn't panic with a nil context for error handling.
-	app := NewApp()
-
-	// Verify the method exists by checking it's callable
-	// The actual dialog requires a Wails context, so we just verify the function signature
-	_ = app
-}

@@ -368,10 +368,7 @@ useReactor(
         // Binary formats (png, jpeg, webp): convert blob to base64
         const arrayBuffer = await blob.arrayBuffer();
         const bytes = new Uint8Array(arrayBuffer);
-        let binary = '';
-        for (let i = 0; i < bytes.byteLength; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
+        const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
         const base64Data = btoa(binary);
         await WriteFileBase64(savePath, base64Data);
       }
