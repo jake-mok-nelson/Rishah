@@ -26,6 +26,14 @@ export function WriteFile(arg1, arg2) {
   return window['go']['main']['App']['WriteFile'](arg1, arg2);
 }
 
+export function WriteFileBase64(arg1, arg2) {
+  return window['go']['main']['App']['WriteFileBase64'](arg1, arg2);
+}
+
+export function SaveFileDialogForExport(arg1, arg2) {
+  return window['go']['main']['App']['SaveFileDialogForExport'](arg1, arg2);
+}
+
 export function AskDialog(arg1, arg2) {
   return window['go']['main']['App']['AskDialog'](arg1, arg2);
 }

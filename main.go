@@ -34,6 +34,13 @@ func main() {
 	fileMenu.AddText("Save As", nil, func(_ *menu.CallbackData) {
 		wailsruntime.EventsEmit(app.ctx, "menu-save-as")
 	})
+	fileMenu.AddSeparator()
+	fileMenu.AddText("Export as PNG", nil, func(_ *menu.CallbackData) {
+		wailsruntime.EventsEmit(app.ctx, "menu-export-as-png")
+	})
+	fileMenu.AddText("Export as SVG", nil, func(_ *menu.CallbackData) {
+		wailsruntime.EventsEmit(app.ctx, "menu-export-as-svg")
+	})
 
 	infoMenu := appMenu.AddSubmenu("Info")
 	infoMenu.AddText("About", nil, func(_ *menu.CallbackData) {

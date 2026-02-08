@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -118,6 +119,41 @@ func (a *App) ReadFile(path string) (string, error) {
 // WriteFile writes string content to a file
 func (a *App) WriteFile(path string, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
+}
+
+// WriteFileBase64 decodes base64-encoded data and writes it to a file
+func (a *App) WriteFileBase64(path string, base64Data string) error {
+	data, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		return fmt.Errorf("failed to decode base64 data: %w", err)
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+// SaveFileDialogForExport opens a native save dialog with format-specific filters for image export
+func (a *App) SaveFileDialogForExport(defaultFilename string, format string) (string, error) {
+	var filter runtime.FileFilter
+	switch format {
+	case "png":
+		filter = runtime.FileFilter{DisplayName: "PNG Image (*.png)", Pattern: "*.png"}
+	case "svg":
+		filter = runtime.FileFilter{DisplayName: "SVG Image (*.svg)", Pattern: "*.svg"}
+	case "jpeg":
+		filter = runtime.FileFilter{DisplayName: "JPEG Image (*.jpeg)", Pattern: "*.jpeg;*.jpg"}
+	case "webp":
+		filter = runtime.FileFilter{DisplayName: "WebP Image (*.webp)", Pattern: "*.webp"}
+	case "json":
+		filter = runtime.FileFilter{DisplayName: "JSON File (*.json)", Pattern: "*.json"}
+	default:
+		filter = runtime.FileFilter{DisplayName: "All Files", Pattern: "*.*"}
+	}
+
+	selection, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:           "Export Drawing",
+		DefaultFilename: defaultFilename,
+		Filters:         []runtime.FileFilter{filter},
+	})
+	return selection, err
 }
 
 // AskDialog shows a confirmation dialog and returns the user's choice

@@ -8,8 +8,10 @@ import {
   GetStartupFileContent,
   OpenFileDialog,
   SaveFileDialog,
+  SaveFileDialogForExport,
   ReadFile,
   WriteFile,
+  WriteFileBase64,
   AskDialog,
   InfoDialog,
   SetTitle,
@@ -140,6 +142,12 @@ useReactor(
     const cleanupAbout = EventsOn('menu-about', () => {
       handleAbout();
     });
+    const cleanupExportPng = EventsOn('menu-export-as-png', () => {
+      handleExport('png');
+    });
+    const cleanupExportSvg = EventsOn('menu-export-as-svg', () => {
+      handleExport('svg');
+    });
 
     return () => {
       cleanupNew();
@@ -147,6 +155,8 @@ useReactor(
       cleanupSave();
       cleanupSaveAs();
       cleanupAbout();
+      cleanupExportPng();
+      cleanupExportSvg();
     };
   }, [currentFilePath, editor]);
 
@@ -331,6 +341,52 @@ useReactor(
       await InfoDialog('About Rishah', 'Rishah v0.6.1\n\nA modern drawing and diagramming application built with Wails and TLDraw.\n\n© 2025 Rishah Team');
     } catch (error) {
       console.error('Error showing about dialog:', error);
+    }
+  }
+
+  const handleExport = async (format: 'png' | 'svg') => {
+    try {
+      if (!editor) return;
+
+      const shapes = editor.getCurrentPageShapeIds();
+      if (shapes.size === 0) {
+        await InfoDialog('Export', 'There are no shapes to export.');
+        return;
+      }
+
+      const defaultName = `${defaultFileName}.${format}`;
+      const savePath = await SaveFileDialogForExport(defaultName, format);
+      if (!savePath) return;
+
+      const { blob } = await editor.toImage([...shapes], { format });
+
+      if (format === 'svg') {
+        // SVG is text-based, read as text and write directly
+        const text = await blob.text();
+        await WriteFile(savePath, text);
+      } else {
+        // Binary formats (png, jpeg, webp): convert blob to base64
+        const arrayBuffer = await blob.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const base64Data = btoa(binary);
+        await WriteFileBase64(savePath, base64Data);
+      }
+
+      messageApi.open({
+        type: 'success',
+        content: `Exported successfully as ${format.toUpperCase()}`,
+      });
+      console.log(`File exported successfully to: ${savePath}`);
+    } catch (error) {
+      console.error('Error exporting file:', error);
+      messageApi.open({
+        type: 'error',
+        content: `Failed to export as ${format.toUpperCase()}`,
+      });
     }
   }
 
