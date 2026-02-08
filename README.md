@@ -1,6 +1,6 @@
 # Rishah
 
-A powerful desktop drawing and whiteboarding application built with Tauri and tldraw. This cross-platform app brings the intuitive tldraw sketching experience to your desktop with native performance and offline capabilities.
+A powerful desktop drawing and whiteboarding application built with Wails and tldraw. This cross-platform app brings the intuitive tldraw sketching experience to your desktop with native performance and offline capabilities.
 
 ![Screenshot](./screenshots/1.png)
 
@@ -8,9 +8,9 @@ A powerful desktop drawing and whiteboarding application built with Tauri and tl
 Visit the [Releases](https://github.com/devjaw/Rishah/releases) page
 Download the latest version for your platform:
 
-* **Windows**: rishah-windows-x64.msi or rishah-windows-x64.exe
-* **macOS**: rishah-macos-universal.dmg or rishah-macos-universal.app.tar.gz
-* **Linux**: rishah-linux-x64.AppImage or rishah-linux-x64.deb
+* **Windows**: rishah-windows-x64.exe
+* **macOS**: rishah-macos-universal
+* **Linux**: rishah-linux-x64
 
 Install or run the downloaded file
 
@@ -35,7 +35,23 @@ Graphics: DirectX 11 / Metal / OpenGL 3.3 compatible
 
 ## Development
 
-Rust 1.70+ | Node.js 16+ | Tauri CLI 1.4+
+Go 1.21+ | Node.js 16+ | Wails CLI v2
+
+### Setup
+
+```bash
+# Install Wails CLI
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+# Install frontend dependencies
+cd frontend && npm install && cd ..
+
+# Run in development mode
+wails dev
+
+# Build for production
+wails build
+```
 
 ### Contributing
 
@@ -48,4 +64,4 @@ This project is licensed under the Apache 2.0 License - see the LICENSE file for
 ## Acknowledgments
 
 * [tldraw](https://tldraw.com/) - The amazing drawing library that powers this application
-* [Tauri](https://tauri.app/) - For making it possible to build lightweight, secure desktop applications
+* [Wails](https://wails.io/) - For making it possible to build lightweight desktop applications with Go

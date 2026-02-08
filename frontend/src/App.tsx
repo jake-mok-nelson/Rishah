@@ -4,22 +4,23 @@ import { Editor, Tldraw, hardReset,parseTldrawJsonFile,createTLSchema, TLUiOverr
    defaultHandleExternalTldrawContent,TLTldrawExternalContent,AssetRecordType,useReactor
   } from 'tldraw'
 import 'tldraw/tldraw.css'
-import { save,open,ask,message as dialogMessage } from '@tauri-apps/plugin-dialog';
-import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
-import { Menu, Submenu, MenuItem } from '@tauri-apps/api/menu';
+import {
+  GetStartupFileContent,
+  OpenFileDialog,
+  SaveFileDialog,
+  ReadFile,
+  WriteFile,
+  AskDialog,
+  InfoDialog,
+  SetTitle,
+} from '../wailsjs/go/main/App'
+import { EventsOn } from '../wailsjs/runtime/runtime'
 import { message } from 'antd';
-import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWindow  } from "@tauri-apps/api/window";
 import { shapeButtons } from "./components/tldraw/shapeButtons";
 import { IconsTool } from './components/tldraw/IconButton'
 import iconS from './assets/pen-tool.png'
 import { CustomStylePanel } from "./components/tldraw/customStylePanel";
 import { initializeUserPreferences, saveUserPreferences, saveInstanceState, loadInstanceState } from "./utils/settingsManager";
-
-getCurrentWindow().listen("my-window-event", ({ event, payload }) => {
-  console.log(event)
-  console.log(payload)
- });
 
 
  export const customAssetUrls: TLUiAssetUrlOverrides = {
@@ -32,7 +33,7 @@ const customTools = [IconsTool]
 
 function App() {
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [currentFilePath, setCurrentFilePath] = useState<String | null>(null);
+  const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
   const [messageApi, contextHolder] = message.useMessage();
   const defaultFileName = 'drawing';
 
@@ -79,7 +80,7 @@ const components: TLComponents = {
   useEffect(() => {
      const fetchData = async () => {
 
-      let result: [string, string] | null = await invoke('get_startup_file_content');
+      const result: string[] | null = await GetStartupFileContent();
       if(!result || !result[0] || !result[1]) return;
 
       await loadTldrawFile(result[1],result[0]);
@@ -94,7 +95,6 @@ useReactor(
     if (!editor) return;
 
     const isGridMode = editor.getInstanceState().isGridMode;
-   // console.log('Grid mode changed:', isGridMode);
     saveInstanceState({ isGridMode });
   },
   [editor]
@@ -105,7 +105,6 @@ useReactor(
   () => {
     if (!editor) return;
     const userPrefs = editor.user.getUserPreferences();
-   // console.log('User preferences changed:', userPrefs);
     saveUserPreferences(userPrefs);
   },
   [editor]
@@ -113,9 +112,6 @@ useReactor(
 
   // Disable context menu
   useEffect(() => {
-    if (window.location.pathname === '/') {
-      window.location.replace('/com.rishah.app');
-    }
     const disableContextMenu = (e: MouseEvent) => {
       e.preventDefault();
     };
@@ -127,70 +123,32 @@ useReactor(
     };
   }, []);
 
-  const initializeMenu = async () => {
-    try {
-      const fileSubmenu = await Submenu.new({
-        text: 'File',
-        items: [
-          await MenuItem.new({
-            id: 'new',
-            text: 'New',
-            action: () => {
-              console.log('New clicked');
-              handleNew();
-            },
-          }),
-          await MenuItem.new({
-            id: 'open',
-            text: 'Open',
-            action: () => {
-              handleOpen();
-            },
-          }),
-          await MenuItem.new({
-            id: 'save',
-            text: 'Save',
-            action: () => {
-              handleSave(); // Changed from this.handleSave() to handleSave()
-            },
-          }),
-          await MenuItem.new({
-            id: 'save-as',
-            text: 'Save As',
-            action: () => {
-              handleSaveAs();
-            },
-          }),
-        ],
-      });
+  // Listen for menu events from Wails backend
+  useEffect(() => {
+    const cleanupNew = EventsOn('menu-new', () => {
+      handleNew();
+    });
+    const cleanupOpen = EventsOn('menu-open', () => {
+      handleOpen();
+    });
+    const cleanupSave = EventsOn('menu-save', () => {
+      handleSave();
+    });
+    const cleanupSaveAs = EventsOn('menu-save-as', () => {
+      handleSaveAs();
+    });
+    const cleanupAbout = EventsOn('menu-about', () => {
+      handleAbout();
+    });
 
-      const infoSubmenu = await Submenu.new({
-        text: 'Info',
-        items: [
-          await MenuItem.new({
-            id: 'about',
-            text: 'About',
-            action: () => {
-              handleAbout();
-            },
-          }),
-        ],
-      });
-
-      const menu = await Menu.new({
-        items: [
-          fileSubmenu,
-          infoSubmenu
-        ],
-      });
-      menu.setAsAppMenu();
-    } catch (error) {
-      console.error('Error initializing menu:', error);
-    }
-  };
-
-  initializeMenu();
- 
+    return () => {
+      cleanupNew();
+      cleanupOpen();
+      cleanupSave();
+      cleanupSaveAs();
+      cleanupAbout();
+    };
+  }, [currentFilePath, editor]);
 
   
     //Handle Ctrl+S and Ctrl+Shift+S keyboard shortcuts
@@ -220,70 +178,14 @@ useReactor(
       };
     }, [currentFilePath,editor]); // Include currentFilePath in dependencies
 
-  // Handle window close event
-  useEffect(() => {
-    const setupCloseHandler = async () => {
-      const unlisten = await getCurrentWindow().onCloseRequested(async (event) => {
-        console.log("Close requested");
-        
-        // Prevent the window from closing initially
-        event.preventDefault();
-        
-        // Show save dialog
-        try {
-          const answer = await ask('Do you want to save your changes before closing?', {
-            title: 'Save Changes',
-            kind: 'warning',
-          });
-          
-          if (answer) {
-            // User wants to save
-            try {
-              await handleSave();
-              console.log("Saved successfully, now closing");
-            } catch (error) {
-              console.error('Error saving before close:', error);
-            }
-          } else {
-            // User chose not to save
-            console.log("User chose not to save");
-          }
-          
-          // After handling the dialog, close the window by destroying it
-          await getCurrentWindow().destroy();
-          
-        } catch (error) {
-          console.error('Error handling close request:', error);
-          // If there's an error, try to close anyway
-          try {
-            await getCurrentWindow().destroy();
-          } catch (destroyError) {
-            console.error('Error destroying window:', destroyError);
-          }
-        }
-      });
-
-      // Return cleanup function
-      return unlisten;
-    };
-
-    let unlistenPromise = setupCloseHandler();
-
-    return () => {
-      // Cleanup the event listener
-      unlistenPromise.then(unlisten => unlisten?.());
-    };
-  }, [handleSave]); // Include handleSave in dependencies
-
   // Update window title when file path changes
   useEffect(() => {
     const updateTitle = async () => {
-      const window = getCurrentWindow();
       if (currentFilePath) {
         const filename = currentFilePath.split('/').pop() || currentFilePath.split('\\').pop();
-        await window.setTitle(`Rishah - ${filename}`);
+        await SetTitle(`Rishah - ${filename}`);
       } else {
-        await window.setTitle('Rishah - Untitled');
+        await SetTitle('Rishah - Untitled');
       }
     };
     
@@ -300,27 +202,19 @@ useReactor(
       if(!DataToSave) return;
   
       if(currentFilePath){
-        await writeTextFile(currentFilePath?.toString(), DataToSave);
+        await WriteFile(currentFilePath, DataToSave);
         success();
         return;
       }
 
-
-
-      // Use Tauri's dialog to let the user choose where to save the file
-      const savePath = await save({
-        defaultPath: `${defaultFileName}.tldr`,
-        filters: [{
-          name: 'TLDraw Files',
-          extensions: ['tldr']
-        }]
-      });
+      // Use Wails dialog to let the user choose where to save the file
+      const savePath = await SaveFileDialog(`${defaultFileName}.tldr`);
       
-      // If the user cancelled the dialog, savePath will be null
+      // If the user cancelled the dialog, savePath will be empty
       if (!savePath) return;
       
       // Write the tldraw file to the selected location
-      await writeTextFile(savePath, DataToSave);
+      await WriteFile(savePath, DataToSave);
       setCurrentFilePath(savePath);
 
       
@@ -339,20 +233,14 @@ useReactor(
       console.log(DataToSave)
       if(!DataToSave) return;
 
-      // Use Tauri's dialog to let the user choose where to save the file
-      const savePath = await save({
-        defaultPath: `${defaultFileName}.tldr`,
-        filters: [{
-          name: 'TLDraw Files',
-          extensions: ['tldr']
-        }]
-      });
+      // Use Wails dialog to let the user choose where to save the file
+      const savePath = await SaveFileDialog(`${defaultFileName}.tldr`);
       
-      // If the user cancelled the dialog, savePath will be null
+      // If the user cancelled the dialog, savePath will be empty
       if (!savePath) return;
       
       // Write the tldraw file to the selected location
-      await writeTextFile(savePath, DataToSave);
+      await WriteFile(savePath, DataToSave);
       setCurrentFilePath(savePath);
 
       success();
@@ -385,10 +273,7 @@ useReactor(
   }
 
   const promptSaveCurrentFile = async () => {
-    const answer = await ask('Would you like to save the current file?', {
-      title: 'Save Current File',
-      kind: 'warning',
-    });
+    const answer = await AskDialog('Save Current File', 'Would you like to save the current file?');
     
     if(answer){
       await handleSave();
@@ -399,23 +284,19 @@ useReactor(
     try {
       await promptSaveCurrentFile();
       
-      // Open file dialog, filter for .tldraw files
-      const selected = await open({
-        filters: [{ name: 'Tldraw Files', extensions: ['tldr'] }],
-        multiple: false
-      });
+      // Open file dialog, filter for .tldr files
+      const selected = await OpenFileDialog();
 
       if(!selected)
         return;
 
-      const fileContent:string = await readTextFile(selected);
+      const fileContent:string = await ReadFile(selected);
       await loadTldrawFile(fileContent,selected)
 
 
     } catch (error) {
       alert("was not able to open the file. the tldr version is mismatch with app version.please download latest version")
       console.error('Error opening file:', error);
-      // You might want to show an error message to the user
     }
   }
 
@@ -442,16 +323,12 @@ useReactor(
       
     } catch (error) {
       console.error('Error opening file:', error);
-      // You might want to show an error message to the user
     }
   }
 
   const handleAbout = async () => {
     try {
-      await dialogMessage('Rishah v0.6.1\n\nA modern drawing and diagramming application built with Tauri and TLDraw.\n\n© 2025 Rishah Team', {
-        title: 'About Rishah',
-        kind: 'info',
-      });
+      await InfoDialog('About Rishah', 'Rishah v0.6.1\n\nA modern drawing and diagramming application built with Wails and TLDraw.\n\n© 2025 Rishah Team');
     } catch (error) {
       console.error('Error showing about dialog:', error);
     }
@@ -467,7 +344,6 @@ useReactor(
     a.forEach(b => {
       // @ts-ignore
       let currentAssetId = b.props?.assetId
-      //const c = editor.getAsset(currentAssetId)
       let getCurrentAsset = content.assets.filter((v) => v.id ==  currentAssetId)[0]
       console.log(getCurrentAsset)
 
@@ -533,5 +409,3 @@ useReactor(
 }
 
 export default App;
-
-
