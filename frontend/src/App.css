@@ -82,6 +82,11 @@ button {
   margin-right: 5px;
 }
 
+/* Hide tldraw watermark */
+.tl-watermark_SEE-LICENSE {
+  display: none !important;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;

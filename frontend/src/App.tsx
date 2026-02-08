@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Editor, Tldraw, hardReset,parseTldrawJsonFile,createTLSchema, TLUiOverrides, TLComponents, useTools, useIsToolSelected,
    DefaultToolbar, TldrawUiMenuItem, DefaultToolbarContent, TLUiAssetUrlOverrides,
-   defaultHandleExternalTldrawContent,TLTldrawExternalContent,AssetRecordType,useReactor
+   defaultHandleExternalTldrawContent,TLTldrawExternalContent,AssetRecordType,useReactor,
+   DefaultDashStyle, DefaultFontStyle
   } from 'tldraw'
 import 'tldraw/tldraw.css'
 import {
@@ -430,6 +431,10 @@ useReactor(
           onMount={(editor) => {
             if(!editor) return;
             setEditor(editor)
+
+            // Set default styles for enhanced rough sketch look
+            editor.setStyleForNextShapes(DefaultDashStyle, 'draw')
+            editor.setStyleForNextShapes(DefaultFontStyle, 'draw')
 
             // Load and apply saved preferences
             initializeUserPreferences().then(savedPrefs => {
