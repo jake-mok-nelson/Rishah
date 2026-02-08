@@ -5,6 +5,7 @@ import { Editor, Tldraw, hardReset,parseTldrawJsonFile,createTLSchema, TLUiOverr
    DefaultDashStyle, DefaultFontStyle
   } from 'tldraw'
 import 'tldraw/tldraw.css'
+import './App.css'
 import {
   GetStartupFileContent,
   OpenFileDialog,
