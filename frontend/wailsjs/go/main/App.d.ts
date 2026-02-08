@@ -13,6 +13,10 @@ export function ReadFile(arg1: string): Promise<string>;
 
 export function WriteFile(arg1: string, arg2: string): Promise<void>;
 
+export function WriteFileBase64(arg1: string, arg2: string): Promise<void>;
+
+export function SaveFileDialogForExport(arg1: string, arg2: string): Promise<string>;
+
 export function AskDialog(arg1: string, arg2: string): Promise<boolean>;
 
 export function InfoDialog(arg1: string, arg2: string): Promise<void>;
