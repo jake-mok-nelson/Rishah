@@ -6,7 +6,7 @@ import * as path from "node:path";
 const args = process.argv.slice(2);
 const inputImagePath = args[0];
 const outputDir = args[1];
-const outputStyle = args[2] || "all";
+const outputStyle = args[2] || "clean";
 
 if (!inputImagePath || !outputDir) {
   console.error(
@@ -40,47 +40,45 @@ async function main() {
       model: "gpt-4.1",
       systemMessage: {
         content: `You are an expert diagram and image transformation assistant.
-Your task is to analyze sketches, diagrams, and drawings and produce clean, styled output versions.
+Your task is to analyze sketches, diagrams, and drawings and produce styled SVG output versions.
 
-When given a diagram or sketch image:
-1. Analyze the content and structure of the image
-2. Generate styled output based on the requested style
-3. Save all generated files to the specified output directory
+IMPORTANT: You MUST output the result as a valid SVG file. The SVG should be a complete, self-contained SVG document.
 
-Available output styles:
-- "mermaid": If the image is a flowchart, sequence diagram, or any diagram type, generate equivalent Mermaid diagram code in a .md file
-- "description": Generate a detailed text description of the diagram/sketch
-- "svg": Generate a clean SVG recreation of the diagram
-- "all": Generate all applicable styles
+When given a diagram or sketch image, analyze it and recreate it as an SVG in the requested visual style.
 
-Always save files to the output directory provided.
-Be concise and focus on producing accurate output.`,
+Available visual styles:
+- "sketch": Recreate the image as a hand-drawn sketch style SVG with rough edges, imperfect lines, and a casual feel. Use slightly wobbly paths instead of straight lines.
+- "clean": Recreate the image as a clean, professional SVG with crisp lines, proper alignment, and a polished look. Use geometric precision.
+- "detailed": Recreate the image as a highly detailed SVG with labels, annotations, shadows, and gradients for a presentation-ready look.
+- "mermaid": If the image is a diagram (flowchart, sequence diagram, etc.), generate Mermaid diagram code. Output the mermaid code as plain text (not SVG). If it's not a diagram, generate a clean SVG instead.
+
+Always save the output file to the specified output directory.
+For SVG styles, save as "generated.svg".
+For mermaid style, save as "generated.mmd".`,
       },
     });
 
     // Build the prompt based on the requested style
     let styleInstruction = "";
+    let outputFileName = "generated.svg";
     switch (outputStyle) {
+      case "sketch":
+        styleInstruction =
+          'Recreate this image as a hand-drawn sketch style SVG. Use wobbly lines, rough edges, and an informal hand-drawn feel. Save the SVG file.';
+        break;
+      case "detailed":
+        styleInstruction =
+          'Recreate this image as a highly detailed, presentation-ready SVG with labels, annotations, shadows, and gradients. Save the SVG file.';
+        break;
       case "mermaid":
         styleInstruction =
-          "Generate a Mermaid diagram (.md file) that represents this image. Only generate mermaid if it's a diagram/flowchart type image.";
+          'If this image contains a diagram (flowchart, sequence diagram, state diagram, etc.), generate equivalent Mermaid diagram code. Save the output as plain text Mermaid code. If it is not a diagram, generate a clean SVG recreation instead.';
+        outputFileName = "generated.mmd";
         break;
-      case "description":
-        styleInstruction =
-          "Generate a detailed text description of this image and save it as a .txt file.";
-        break;
-      case "svg":
-        styleInstruction =
-          "Generate a clean SVG recreation of this diagram and save it as a .svg file.";
-        break;
-      case "all":
+      case "clean":
       default:
-        styleInstruction = `Generate multiple output styles for this image:
-1. A detailed text description saved as "description.txt"
-2. If the image contains a diagram, flowchart, sequence diagram, or any structured diagram, generate Mermaid code saved as "diagram.md" with proper mermaid code blocks
-3. A clean SVG recreation saved as "recreation.svg"
-
-Save all files to: ${outputDir}`;
+        styleInstruction =
+          'Recreate this image as a clean, professional SVG with crisp geometric lines, proper alignment, and a polished look. Save the SVG file.';
         break;
     }
 
@@ -96,32 +94,45 @@ Save all files to: ${outputDir}`;
 
 Please analyze this image and ${styleInstruction}
 
-The output directory is: ${outputDir}
-
-After generating the files, list all the files you created with their full paths.`,
+Save the output file as "${path.join(outputDir, outputFileName)}".`,
     });
 
     await session.destroy();
     await client.stop();
 
-    // Scan output directory for any generated files
-    const outputFiles: string[] = [];
-    if (fs.existsSync(outputDir)) {
+    // Read the generated output file content
+    const outputFilePath = path.join(outputDir, outputFileName);
+    // Also check for SVG if mermaid was requested but a diagram wasn't found
+    const svgFallback = path.join(outputDir, "generated.svg");
+
+    let content = "";
+    let actualFileName = outputFileName;
+
+    if (fs.existsSync(outputFilePath)) {
+      content = fs.readFileSync(outputFilePath, "utf-8");
+    } else if (outputStyle === "mermaid" && fs.existsSync(svgFallback)) {
+      content = fs.readFileSync(svgFallback, "utf-8");
+      actualFileName = "generated.svg";
+    } else {
+      // Scan for any generated file
       const files = fs.readdirSync(outputDir);
-      for (const file of files) {
-        const filePath = path.join(outputDir, file);
-        if (fs.statSync(filePath).isFile()) {
-          outputFiles.push(filePath);
-        }
+      if (files.length > 0) {
+        const firstFile = files[0];
+        content = fs.readFileSync(path.join(outputDir, firstFile), "utf-8");
+        actualFileName = firstFile;
       }
     }
+
+    const isSvg = actualFileName.endsWith(".svg") || content.trimStart().startsWith("<svg") || /<svg[\s>]/.test(content);
 
     // Output result as JSON for the Go backend to parse
     console.log(
       JSON.stringify({
         success: true,
-        files: outputFiles,
-        outputDir: outputDir,
+        content: content,
+        style: outputStyle,
+        isSvg: isSvg,
+        fileName: actualFileName,
       })
     );
   } catch (error: unknown) {

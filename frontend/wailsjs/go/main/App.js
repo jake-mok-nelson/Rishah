@@ -10,10 +10,6 @@ export function GenerateImageWithAI(arg1, arg2) {
   return window['go']['main']['App']['GenerateImageWithAI'](arg1, arg2);
 }
 
-export function SelectDirectoryDialog() {
-  return window['go']['main']['App']['SelectDirectoryDialog']();
-}
-
 export function GetStartupFileContent() {
   return window['go']['main']['App']['GetStartupFileContent']();
 }

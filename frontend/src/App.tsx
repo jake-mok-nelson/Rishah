@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Editor, Tldraw, hardReset,parseTldrawJsonFile,createTLSchema, TLUiOverrides, TLComponents, useTools, useIsToolSelected,
    DefaultToolbar, TldrawUiMenuItem, DefaultToolbarContent, TLUiAssetUrlOverrides,
    defaultHandleExternalTldrawContent,TLTldrawExternalContent,AssetRecordType,useReactor,
-   DefaultDashStyle, DefaultFontStyle
+   DefaultDashStyle, DefaultFontStyle, createShapeId, toRichText
   } from 'tldraw'
 import 'tldraw/tldraw.css'
 import './App.css'
@@ -18,7 +18,6 @@ import {
   InfoDialog,
   SetTitle,
   GenerateImageWithAI,
-  SelectDirectoryDialog,
 } from '../wailsjs/go/main/App'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import { message, Modal, Radio } from 'antd';
@@ -407,17 +406,17 @@ useReactor(
 
       // Show style selection dialog
       const selectedStyle = await new Promise<string | null>((resolve) => {
-        let style = 'all';
+        let style = 'clean';
         Modal.confirm({
           title: 'Generate Image with AI',
           content: (
             <div>
               <p>Select output style:</p>
-              <Radio.Group defaultValue="all" onChange={(e) => { style = e.target.value; }}>
-                <Radio.Button value="all">All Styles</Radio.Button>
+              <Radio.Group defaultValue="clean" onChange={(e) => { style = e.target.value; }}>
+                <Radio.Button value="sketch">Sketch</Radio.Button>
+                <Radio.Button value="clean">Clean</Radio.Button>
+                <Radio.Button value="detailed">Detailed</Radio.Button>
                 <Radio.Button value="mermaid">Mermaid</Radio.Button>
-                <Radio.Button value="svg">SVG</Radio.Button>
-                <Radio.Button value="description">Description</Radio.Button>
               </Radio.Group>
             </div>
           ),
@@ -430,13 +429,9 @@ useReactor(
 
       if (!selectedStyle) return;
 
-      // Let the user pick an output directory
-      const outputDir = await SelectDirectoryDialog();
-      if (!outputDir) return;
-
       messageApi.open({
         type: 'loading',
-        content: 'Generating styled images with AI... This may take a moment.',
+        content: 'Generating styled image with AI... This may take a moment.',
         duration: 0,
         key: 'ai-generate',
       });
@@ -454,15 +449,75 @@ useReactor(
 
       messageApi.destroy('ai-generate');
 
-      if (result.success && result.files && result.files.length > 0) {
+      if (result.success && result.content) {
+        // Create a new page for the generated content
+        const pageName = `AI - ${selectedStyle.charAt(0).toUpperCase() + selectedStyle.slice(1)}`;
+        editor.createPage({ name: pageName });
+        const newPage = editor.getPages().find(p => p.name === pageName);
+        if (newPage) {
+          editor.setCurrentPage(newPage.id);
+
+          if (result.isSvg) {
+            // SVG content: create as an image asset and place on the page
+            const svgContent = result.content;
+            const svgDataUri = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgContent);
+
+            // Parse SVG dimensions
+            const widthMatch = svgContent.match(/width=["']?(\d+)/);
+            const heightMatch = svgContent.match(/height=["']?(\d+)/);
+            const w = widthMatch ? parseInt(widthMatch[1]) : 800;
+            const h = heightMatch ? parseInt(heightMatch[1]) : 600;
+
+            const assetId = AssetRecordType.createId();
+            editor.createAssets([{
+              id: assetId,
+              type: 'image',
+              typeName: 'asset',
+              props: {
+                name: `ai-${selectedStyle}.svg`,
+                src: svgDataUri,
+                w,
+                h,
+                mimeType: 'image/svg+xml',
+                isAnimated: false,
+              },
+              meta: {},
+            }]);
+
+            const shapeId = createShapeId();
+            editor.createShape({
+              id: shapeId,
+              type: 'image',
+              x: 100,
+              y: 100,
+              props: {
+                assetId,
+                w,
+                h,
+              },
+            });
+          } else {
+            // Text/mermaid content: create as a text shape on the page
+            const shapeId = createShapeId();
+            editor.createShape({
+              id: shapeId,
+              type: 'text',
+              x: 100,
+              y: 100,
+              props: {
+                richText: toRichText(result.content),
+                autoSize: true,
+              },
+            });
+          }
+
+          // Zoom to fit the new content
+          editor.zoomToFit();
+        }
+
         messageApi.open({
           type: 'success',
-          content: `Generated ${result.files.length} file(s) in ${outputDir}`,
-        });
-      } else if (result.success) {
-        messageApi.open({
-          type: 'info',
-          content: `AI generation completed. Check ${outputDir} for output files.`,
+          content: `Generated ${selectedStyle} style on new page "${pageName}"`,
         });
       } else {
         messageApi.open({

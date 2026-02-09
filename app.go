@@ -232,8 +232,8 @@ func (a *App) SelectDirectoryDialog() (string, error) {
 }
 
 // GenerateImageWithAI runs the copilot-sdk script to generate styled versions of a diagram image.
-// It accepts a base64-encoded PNG image and an output style ("all", "mermaid", "description", "svg").
-// Returns a JSON string with the result.
+// It accepts a base64-encoded PNG image and a visual style ("sketch", "clean", "detailed", "mermaid").
+// Returns a JSON string with the generated content.
 func (a *App) GenerateImageWithAI(base64Image string, outputStyle string) (string, error) {
 	// Decode image to a temp file
 	imgData, err := base64.StdEncoding.DecodeString(base64Image)
