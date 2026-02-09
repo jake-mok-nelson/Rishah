@@ -32,8 +32,6 @@ if (!fs.existsSync(inputImagePath)) {
 // Ensure output directory exists
 fs.mkdirSync(outputDir, { recursive: true });
 
-const generatedFiles: string[] = [];
-
 async function main() {
   const client = new CopilotClient({ logLevel: "error" });
 
@@ -86,26 +84,10 @@ Save all files to: ${outputDir}`;
         break;
     }
 
-    // Set up event handling to collect generated files
+    // Set up event handling
     session.on((event) => {
-      if (event.type === "tool.execution_complete") {
-        // Track file operations
-        const toolResult = event.data;
-        if (toolResult && typeof toolResult === "object") {
-          // Try to detect created files from tool results
-          const resultStr = JSON.stringify(toolResult);
-          const fileExtensions = [".md", ".txt", ".svg", ".png", ".mmd"];
-          for (const ext of fileExtensions) {
-            const regex = new RegExp(
-              `${outputDir.replace(/[/\\]/g, "[/\\\\]")}[/\\\\][^"\\s]*${ext.replace(".", "\\.")}`,
-              "g"
-            );
-            const matches = resultStr.match(regex);
-            if (matches) {
-              generatedFiles.push(...matches);
-            }
-          }
-        }
+      if (event.type === "tool.execution_start") {
+        console.error(`  → Running: ${event.data.toolName}`);
       }
     });
 

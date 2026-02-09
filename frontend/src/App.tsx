@@ -21,7 +21,7 @@ import {
   SelectDirectoryDialog,
 } from '../wailsjs/go/main/App'
 import { EventsOn } from '../wailsjs/runtime/runtime'
-import { message } from 'antd';
+import { message, Modal, Radio } from 'antd';
 import { shapeButtons } from "./components/tldraw/shapeButtons";
 import { IconsTool } from './components/tldraw/IconButton'
 import iconS from './assets/pen-tool.png'
@@ -405,6 +405,31 @@ useReactor(
         return;
       }
 
+      // Show style selection dialog
+      const selectedStyle = await new Promise<string | null>((resolve) => {
+        let style = 'all';
+        Modal.confirm({
+          title: 'Generate Image with AI',
+          content: (
+            <div>
+              <p>Select output style:</p>
+              <Radio.Group defaultValue="all" onChange={(e) => { style = e.target.value; }}>
+                <Radio.Button value="all">All Styles</Radio.Button>
+                <Radio.Button value="mermaid">Mermaid</Radio.Button>
+                <Radio.Button value="svg">SVG</Radio.Button>
+                <Radio.Button value="description">Description</Radio.Button>
+              </Radio.Group>
+            </div>
+          ),
+          okText: 'Generate',
+          cancelText: 'Cancel',
+          onOk: () => resolve(style),
+          onCancel: () => resolve(null),
+        });
+      });
+
+      if (!selectedStyle) return;
+
       // Let the user pick an output directory
       const outputDir = await SelectDirectoryDialog();
       if (!outputDir) return;
@@ -424,7 +449,7 @@ useReactor(
       const base64Data = btoa(binary);
 
       // Call the Go backend to run copilot-sdk generation
-      const resultJSON = await GenerateImageWithAI(base64Data, 'all');
+      const resultJSON = await GenerateImageWithAI(base64Data, selectedStyle);
       const result = JSON.parse(resultJSON);
 
       messageApi.destroy('ai-generate');
