@@ -3,6 +3,10 @@
 
 export function AskDialog(arg1:string,arg2:string):Promise<boolean>;
 
+export function SelectDirectoryDialog():Promise<string>;
+
+export function GenerateImageWithAI(arg1:string,arg2:string):Promise<string>;
+
 export function GetStartupFileContent():Promise<Array<string>>;
 
 export function Greet(arg1:string):Promise<string>;

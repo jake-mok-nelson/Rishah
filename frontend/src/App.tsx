@@ -17,6 +17,8 @@ import {
   AskDialog,
   InfoDialog,
   SetTitle,
+  GenerateImageWithAI,
+  SelectDirectoryDialog,
 } from '../wailsjs/go/main/App'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import { message } from 'antd';
@@ -150,6 +152,9 @@ useReactor(
     const cleanupExportSvg = EventsOn('menu-export-as-svg', () => {
       handleExport('svg');
     });
+    const cleanupGenerateAI = EventsOn('menu-generate-ai', () => {
+      handleGenerateAI();
+    });
 
     return () => {
       cleanupNew();
@@ -159,6 +164,7 @@ useReactor(
       cleanupAbout();
       cleanupExportPng();
       cleanupExportSvg();
+      cleanupGenerateAI();
     };
   }, [currentFilePath, editor]);
 
@@ -385,6 +391,66 @@ useReactor(
       messageApi.open({
         type: 'error',
         content: `Failed to export as ${format.toUpperCase()}`,
+      });
+    }
+  }
+
+  const handleGenerateAI = async () => {
+    try {
+      if (!editor) return;
+
+      const shapes = editor.getCurrentPageShapeIds();
+      if (shapes.size === 0) {
+        await InfoDialog('Generate Image with AI', 'There are no shapes to generate from.');
+        return;
+      }
+
+      // Let the user pick an output directory
+      const outputDir = await SelectDirectoryDialog();
+      if (!outputDir) return;
+
+      messageApi.open({
+        type: 'loading',
+        content: 'Generating styled images with AI... This may take a moment.',
+        duration: 0,
+        key: 'ai-generate',
+      });
+
+      // Export canvas as PNG for AI input
+      const { blob } = await editor.toImage([...shapes], { format: 'png' });
+      const arrayBuffer = await blob.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+      const base64Data = btoa(binary);
+
+      // Call the Go backend to run copilot-sdk generation
+      const resultJSON = await GenerateImageWithAI(base64Data, 'all');
+      const result = JSON.parse(resultJSON);
+
+      messageApi.destroy('ai-generate');
+
+      if (result.success && result.files && result.files.length > 0) {
+        messageApi.open({
+          type: 'success',
+          content: `Generated ${result.files.length} file(s) in ${outputDir}`,
+        });
+      } else if (result.success) {
+        messageApi.open({
+          type: 'info',
+          content: `AI generation completed. Check ${outputDir} for output files.`,
+        });
+      } else {
+        messageApi.open({
+          type: 'error',
+          content: result.error || 'AI generation failed',
+        });
+      }
+    } catch (error) {
+      messageApi.destroy('ai-generate');
+      console.error('Error generating AI image:', error);
+      messageApi.open({
+        type: 'error',
+        content: 'Failed to generate image with AI. Ensure the Copilot CLI and Node.js are installed.',
       });
     }
   }
