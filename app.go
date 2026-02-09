@@ -245,6 +245,7 @@ func (a *App) GenerateImageWithAI(base64Image string, outputStyle string) (strin
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp directory: %w", err)
 	}
+	defer os.RemoveAll(tmpDir)
 
 	inputPath := filepath.Join(tmpDir, "input.png")
 	if err := os.WriteFile(inputPath, imgData, 0600); err != nil {
@@ -280,7 +281,7 @@ func (a *App) GenerateImageWithAI(base64Image string, outputStyle string) (strin
 	cmd.Dir = copilotDir
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("copilot generation failed: %w\nOutput: %s", err, string(output))
+		return "", fmt.Errorf("copilot generation failed: %w", err)
 	}
 
 	// Parse the last line of output as JSON result
