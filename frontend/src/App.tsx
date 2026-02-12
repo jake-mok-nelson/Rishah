@@ -43,6 +43,23 @@ function App() {
   const defaultFileName = 'drawing';
 
 const uiOverrides: TLUiOverrides = {
+	actions(_editor, actions) {
+		// Override tldraw's built-in export actions to use our custom export handler
+		// (the default uses browser downloads which don't work in Wails)
+		actions['export-as-png'] = {
+			...actions['export-as-png'],
+			onSelect() {
+				handleExport('png');
+			},
+		};
+		actions['export-as-svg'] = {
+			...actions['export-as-svg'],
+			onSelect() {
+				handleExport('svg');
+			},
+		};
+		return actions;
+	},
 	tools(editor, tools) {
 		// Create a tool item in the ui's context.
 		tools.icons = {
@@ -365,7 +382,7 @@ useReactor(
       const savePath = await SaveFileDialogForExport(defaultName, format);
       if (!savePath) return;
 
-      const { blob } = await editor.toImage([...shapes], { format });
+      const { blob } = await editor.toImage([...shapes], { format, background: false });
 
       if (format === 'svg') {
         // SVG is text-based, read as text and write directly
@@ -598,6 +615,41 @@ useReactor(
             editor.registerExternalContentHandler('tldraw', (content) =>{
               handleCustomTldrawPaste(editor,content);
             })
+
+            // Intercept paste events to avoid WebKit's clipboard permission prompt
+            // (which causes a double "paste button" when pasting images)
+            const container = editor.getContainer();
+            const pasteInterceptor = (e: ClipboardEvent) => {
+              if (editor.getEditingShapeId() !== null) return;
+              if (!e.clipboardData || e.clipboardData.items.length === 0) return;
+
+              const hasFiles = Array.from(e.clipboardData.items).some(item => item.kind === 'file');
+              if (hasFiles) {
+                e.stopPropagation();
+                e.preventDefault();
+
+                const files: File[] = [];
+                for (const item of Array.from(e.clipboardData.items)) {
+                  if (item.kind === 'file') {
+                    const file = item.getAsFile();
+                    if (file) files.push(file);
+                  }
+                }
+                if (files.length > 0) {
+                  editor.markHistoryStoppingPoint('paste');
+                  editor.putExternalContent({
+                    type: 'files',
+                    files,
+                    point: editor.getViewportPageBounds().center,
+                  });
+                }
+              }
+            };
+            container.ownerDocument.addEventListener('paste', pasteInterceptor, true);
+
+            return () => {
+              container.ownerDocument.removeEventListener('paste', pasteInterceptor, true);
+            };
           }}
           tools={customTools}
           overrides={uiOverrides}
