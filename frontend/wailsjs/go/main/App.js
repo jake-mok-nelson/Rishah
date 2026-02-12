@@ -6,6 +6,10 @@ export function AskDialog(arg1, arg2) {
   return window['go']['main']['App']['AskDialog'](arg1, arg2);
 }
 
+export function GenerateImageWithAI(arg1, arg2) {
+  return window['go']['main']['App']['GenerateImageWithAI'](arg1, arg2);
+}
+
 export function GetStartupFileContent() {
   return window['go']['main']['App']['GetStartupFileContent']();
 }

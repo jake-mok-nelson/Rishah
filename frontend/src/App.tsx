@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Editor, Tldraw, hardReset,parseTldrawJsonFile,createTLSchema, TLUiOverrides, TLComponents, useTools, useIsToolSelected,
    DefaultToolbar, TldrawUiMenuItem, DefaultToolbarContent, TLUiAssetUrlOverrides,
    defaultHandleExternalTldrawContent,TLTldrawExternalContent,AssetRecordType,useReactor,
-   DefaultDashStyle, DefaultFontStyle
+   DefaultDashStyle, DefaultFontStyle, createShapeId, toRichText
   } from 'tldraw'
 import 'tldraw/tldraw.css'
 import './App.css'
@@ -17,9 +17,10 @@ import {
   AskDialog,
   InfoDialog,
   SetTitle,
+  GenerateImageWithAI,
 } from '../wailsjs/go/main/App'
 import { EventsOn } from '../wailsjs/runtime/runtime'
-import { message } from 'antd';
+import { message, Modal, Radio } from 'antd';
 import { shapeButtons } from "./components/tldraw/shapeButtons";
 import { IconsTool } from './components/tldraw/IconButton'
 import iconS from './assets/pen-tool.png'
@@ -150,6 +151,9 @@ useReactor(
     const cleanupExportSvg = EventsOn('menu-export-as-svg', () => {
       handleExport('svg');
     });
+    const cleanupGenerateAI = EventsOn('menu-generate-ai', () => {
+      handleGenerateAI();
+    });
 
     return () => {
       cleanupNew();
@@ -159,6 +163,7 @@ useReactor(
       cleanupAbout();
       cleanupExportPng();
       cleanupExportSvg();
+      cleanupGenerateAI();
     };
   }, [currentFilePath, editor]);
 
@@ -385,6 +390,147 @@ useReactor(
       messageApi.open({
         type: 'error',
         content: `Failed to export as ${format.toUpperCase()}`,
+      });
+    }
+  }
+
+  const handleGenerateAI = async () => {
+    try {
+      if (!editor) return;
+
+      const shapes = editor.getCurrentPageShapeIds();
+      if (shapes.size === 0) {
+        await InfoDialog('Generate Image with AI', 'There are no shapes to generate from.');
+        return;
+      }
+
+      // Show style selection dialog
+      const selectedStyle = await new Promise<string | null>((resolve) => {
+        let style = 'clean';
+        Modal.confirm({
+          title: 'Generate Image with AI',
+          content: (
+            <div>
+              <p>Select output style:</p>
+              <Radio.Group defaultValue="clean" onChange={(e) => { style = e.target.value; }}>
+                <Radio.Button value="sketch">Sketch</Radio.Button>
+                <Radio.Button value="clean">Clean</Radio.Button>
+                <Radio.Button value="detailed">Detailed</Radio.Button>
+                <Radio.Button value="mermaid">Mermaid</Radio.Button>
+              </Radio.Group>
+            </div>
+          ),
+          okText: 'Generate',
+          cancelText: 'Cancel',
+          onOk: () => resolve(style),
+          onCancel: () => resolve(null),
+        });
+      });
+
+      if (!selectedStyle) return;
+
+      messageApi.open({
+        type: 'loading',
+        content: 'Generating styled image with AI... This may take a moment.',
+        duration: 0,
+        key: 'ai-generate',
+      });
+
+      // Export canvas as PNG for AI input
+      const { blob } = await editor.toImage([...shapes], { format: 'png' });
+      const arrayBuffer = await blob.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+      const base64Data = btoa(binary);
+
+      // Call the Go backend to run copilot-sdk generation
+      const resultJSON = await GenerateImageWithAI(base64Data, selectedStyle);
+      const result = JSON.parse(resultJSON);
+
+      messageApi.destroy('ai-generate');
+
+      if (result.success && result.content) {
+        // Create a new page for the generated content
+        const pageName = `AI - ${selectedStyle.charAt(0).toUpperCase() + selectedStyle.slice(1)}`;
+        editor.createPage({ name: pageName });
+        const newPage = editor.getPages().find(p => p.name === pageName);
+        if (newPage) {
+          editor.setCurrentPage(newPage.id);
+
+          if (result.isSvg) {
+            // SVG content: create as an image asset and place on the page
+            const svgContent = result.content;
+            const svgDataUri = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgContent);
+
+            // Parse SVG dimensions
+            const widthMatch = svgContent.match(/width=["']?(\d+)/);
+            const heightMatch = svgContent.match(/height=["']?(\d+)/);
+            const w = widthMatch ? parseInt(widthMatch[1]) : 800;
+            const h = heightMatch ? parseInt(heightMatch[1]) : 600;
+
+            const assetId = AssetRecordType.createId();
+            editor.createAssets([{
+              id: assetId,
+              type: 'image',
+              typeName: 'asset',
+              props: {
+                name: `ai-${selectedStyle}.svg`,
+                src: svgDataUri,
+                w,
+                h,
+                mimeType: 'image/svg+xml',
+                isAnimated: false,
+              },
+              meta: {},
+            }]);
+
+            const shapeId = createShapeId();
+            editor.createShape({
+              id: shapeId,
+              type: 'image',
+              x: 100,
+              y: 100,
+              props: {
+                assetId,
+                w,
+                h,
+              },
+            });
+          } else {
+            // Text/mermaid content: create as a text shape on the page
+            const shapeId = createShapeId();
+            editor.createShape({
+              id: shapeId,
+              type: 'text',
+              x: 100,
+              y: 100,
+              props: {
+                richText: toRichText(result.content),
+                autoSize: true,
+              },
+            });
+          }
+
+          // Zoom to fit the new content
+          editor.zoomToFit();
+        }
+
+        messageApi.open({
+          type: 'success',
+          content: `Generated ${selectedStyle} style on new page "${pageName}"`,
+        });
+      } else {
+        messageApi.open({
+          type: 'error',
+          content: result.error || 'AI generation failed',
+        });
+      }
+    } catch (error) {
+      messageApi.destroy('ai-generate');
+      console.error('Error generating AI image:', error);
+      messageApi.open({
+        type: 'error',
+        content: 'Failed to generate image with AI. Ensure the Copilot CLI and Node.js are installed.',
       });
     }
   }

@@ -39,3 +39,6 @@ build/bin/
 
 # Go module cache
 /vendor/
+
+# Wails build output binary
+/rishah

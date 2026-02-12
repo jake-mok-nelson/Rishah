@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -220,6 +221,76 @@ func (a *App) LoadSettings() (string, error) {
 		return "{}", nil
 	}
 	return string(data), nil
+}
+
+// SelectDirectoryDialog opens a native directory selection dialog
+func (a *App) SelectDirectoryDialog() (string, error) {
+	selection, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Select Output Directory",
+	})
+	return selection, err
+}
+
+// GenerateImageWithAI runs the copilot-sdk script to generate styled versions of a diagram image.
+// It accepts a base64-encoded PNG image and a visual style ("sketch", "clean", "detailed", "mermaid").
+// Returns a JSON string with the generated content.
+func (a *App) GenerateImageWithAI(base64Image string, outputStyle string) (string, error) {
+	// Decode image to a temp file
+	imgData, err := base64.StdEncoding.DecodeString(base64Image)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode image data: %w", err)
+	}
+
+	tmpDir, err := os.MkdirTemp("", "rishah-ai-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	inputPath := filepath.Join(tmpDir, "input.png")
+	if err := os.WriteFile(inputPath, imgData, 0600); err != nil {
+		return "", fmt.Errorf("failed to write temp image: %w", err)
+	}
+
+	outputDir := filepath.Join(tmpDir, "output")
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Find the copilot script directory relative to the executable
+	execPath, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("failed to get executable path: %w", err)
+	}
+	copilotDir := filepath.Join(filepath.Dir(execPath), "copilot")
+
+	// Fall back to source directory layout if bundled copilot dir doesn't exist
+	if _, err := os.Stat(copilotDir); os.IsNotExist(err) {
+		// Try relative to working directory (development mode)
+		cwd, _ := os.Getwd()
+		copilotDir = filepath.Join(cwd, "copilot")
+	}
+
+	scriptPath := filepath.Join(copilotDir, "generate.ts")
+	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+		return "", fmt.Errorf("copilot generate script not found at %s - ensure the copilot directory is set up", scriptPath)
+	}
+
+	// Run the copilot generation script
+	cmd := exec.Command("npx", "tsx", scriptPath, inputPath, outputDir, outputStyle)
+	cmd.Dir = copilotDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("copilot generation failed: %w", err)
+	}
+
+	// Parse the last line of output as JSON result
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) == 0 {
+		return "", fmt.Errorf("no output from copilot generation script")
+	}
+
+	return lines[len(lines)-1], nil
 }
 
 // SaveSettings saves settings to the config file

@@ -41,6 +41,10 @@ func main() {
 	fileMenu.AddText("Export as SVG", nil, func(_ *menu.CallbackData) {
 		wailsruntime.EventsEmit(app.ctx, "menu-export-as-svg")
 	})
+	fileMenu.AddSeparator()
+	fileMenu.AddText("Generate Image with AI", nil, func(_ *menu.CallbackData) {
+		wailsruntime.EventsEmit(app.ctx, "menu-generate-ai")
+	})
 
 	infoMenu := appMenu.AddSubmenu("Info")
 	infoMenu.AddText("About", nil, func(_ *menu.CallbackData) {
